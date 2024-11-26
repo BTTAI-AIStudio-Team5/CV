@@ -48,7 +48,7 @@ def load_model():
 
 def process_img(image_path, model):
     # Load image, grayscale, Otsu's threshold 
-    image = cv2.imread('BTAI_genImages_150\canvas_3_banana1_monkey1_box3.png')
+    image = cv2.imread(image_path)
     height, width = image.shape[:2]
     scale = 50
     new_width = int(width * 50.0/100.0)
@@ -105,25 +105,37 @@ def process_img(image_path, model):
             output = model(roi_tensor)
             _, predicted = torch.max(output, 1)
             prediction_label = categories[predicted.item()]
+
+        #print(predicted)
+        #print(prediction_label)
+
         cv2.imwrite('ROI_{}.png'.format(ROI_number), ROI)
         ROI_number += 1
+
+        box = [(x, y), (x+w, y), (x, y+h), (x+w, y+h)]
+
+        cv2.rectangle(image, (502, 301), (588, 499), (255, 12, 36), 2)
+        #cv2.rectangle(image, (1201, 452), (1249, 500), (255, 12, 36), 2)
         
         imgs_info.append({'category': prediction_label, 
-                         'bbox': (x,y,w,h)
+                         'bbox': box
                         })
         
     cv2.imshow('image', image)
     cv2.waitKey()
-    cv2.imshow('gray', gray)
-    cv2.waitKey()
-    cv2.imshow('threshold', thresh)
-    cv2.waitKey()
+    #cv2.imshow('gray', gray)
+    #cv2.waitKey()
+    #cv2.imshow('threshold', thresh)
+    #cv2.waitKey()
+
+    #print(imgs_info)
     
     return image, imgs_info
 
 model = load_model()
-img_path = 'BTAI_genImages_150\canvas_3_banana1_monkey1_box3.png'
+img_path = 'BTAI_genImages_150\canvas_6_banana2_monkey1_box4.png'
 result_img, info = process_img(img_path, model)
+
 for i, detection in enumerate(info):
     print(f"Object {i+1}:")
     print(f"Category: {detection['category']}")
