@@ -1,12 +1,9 @@
 import cv2
-import numpy as np
 import torch
-import torchvision.models as models
 import torchvision.transforms as transforms
+import joblib
 from PIL import Image
 import torch.nn as nn
-
-categories = ["banana", "monkey", "box_A", "box_B", "box_C", "box_D"]
 
 def preprocess(img):
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -40,7 +37,7 @@ def load_model():
     nn.Linear(128 * 4* 4, 128),
     nn.ReLU(),
     nn.Dropout(0.5),
-    nn.Linear(128, 6)
+    nn.Linear(128, 7)
     )
     model.load_state_dict(torch.load('cnn.pth'))
     model.eval()
@@ -104,7 +101,7 @@ def process_img(image_path, model):
         with torch.no_grad():
             output = model(roi_tensor)
             _, predicted = torch.max(output, 1)
-            prediction_label = categories[predicted.item()]
+            prediction_label = label_encoder.inverse_transform([predicted.item()])[0]
 
         #print(predicted)
         #print(prediction_label)
@@ -112,13 +109,13 @@ def process_img(image_path, model):
         cv2.imwrite('ROI_{}.png'.format(ROI_number), ROI)
         ROI_number += 1
 
-        box = [(x, y), (x+w, y), (x, y+h), (x+w, y+h)]
+        mid_box_coords = [(x + (x+w))/2, (y + (y+h))/2]
 
         cv2.rectangle(image, (502, 301), (588, 499), (255, 12, 36), 2)
         #cv2.rectangle(image, (1201, 452), (1249, 500), (255, 12, 36), 2)
         
         imgs_info.append({'category': prediction_label, 
-                         'bbox': box
+                         'bbox': mid_box_coords
                         })
         
     cv2.imshow('image', image)
@@ -134,6 +131,7 @@ def process_img(image_path, model):
 
 model = load_model()
 img_path = 'BTAI_genImages_150\canvas_6_banana2_monkey1_box4.png'
+label_encoder = joblib.load('label_encoder.pkl')
 result_img, info = process_img(img_path, model)
 
 for i, detection in enumerate(info):
