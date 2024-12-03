@@ -111,7 +111,7 @@ def process_img(image_path, model):
 
         mid_box_coords = [(x + (x+w))/2, (y + (y+h))/2]
 
-        cv2.rectangle(image, (502, 301), (588, 499), (255, 12, 36), 2)
+        #cv2.rectangle(image, (502, 301), (588, 499), (255, 12, 36), 2)
         #cv2.rectangle(image, (1201, 452), (1249, 500), (255, 12, 36), 2)
         
         imgs_info.append({'category': prediction_label, 
