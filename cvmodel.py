@@ -194,7 +194,7 @@ def detect_object_boundaries(roi):
     
     return edge_mask
 
-def split_roi(roi, model, label_encoder, rois, j, info):
+def split_roi(roi, model, label_encoder, rois, j, coords):
     """
     Split ROI into sub-regions if multiple objects are detected
     """
@@ -245,12 +245,12 @@ def split_roi(roi, model, label_encoder, rois, j, info):
         else:
             roi_filename = "ROI_{}.png".format(i-1+rois)
             
-        print('writing file to ', roi_filename)
+        #print('writing file to ', roi_filename)
         cv2.imwrite(roi_filename, roi)
 
     return split_rois, rois+1
 
-def classify_rois(rois, model, label_encoder, info):
+def classify_rois(rois, model, label_encoder, coords):
     """
     Classify each split ROI
     """
@@ -325,7 +325,7 @@ def classify_rois(rois, model, label_encoder, info):
     
     return imgs_info
 
-def process_roi(img_path, model, label_encoder, rois, j, info):
+def process_roi(img_path, model, label_encoder, rois, j, info, coords):
     """
     Main processing function for a single ROI
     """
@@ -334,10 +334,10 @@ def process_roi(img_path, model, label_encoder, rois, j, info):
     roi = cv2.imread(img_path)
     
     # Split ROI if multiple objects detected
-    split_rois, new_rois = split_roi(roi, model, label_encoder, rois, j, info)
+    split_rois, new_rois = split_roi(roi, model, label_encoder, rois, j, coords)
     
     # Classify split ROIs
-    imgs_info = classify_rois(split_rois, model, label_encoder, info)
+    imgs_info = classify_rois(split_rois, model, label_encoder, coords)
     
     # Optional: visualize split ROIs
     for i, info in enumerate(imgs_info):
@@ -350,7 +350,7 @@ def process_roi(img_path, model, label_encoder, rois, j, info):
 
 if __name__ == "__main__":
     model = load_model()
-    img_path = 'BTAI_genImages_150\canvas_14_banana1_monkey1_box4.png'
+    img_path = 'BTAI_genImages_extra\canvas_0_banana2_monkey1_box4_stack3.png'
     label_encoder = joblib.load('label_encoder.pkl')
     result_img, info, rois = process_img(img_path, model)
 
@@ -358,13 +358,14 @@ if __name__ == "__main__":
     
     for i in enumerate(info):
         img_path = 'ROI_{}.png'.format(i[0])
-        print(img_path)
-        results, new_rois = process_roi(img_path, model, label_encoder, rois, i, info)
-        for i, detection in enumerate(results):
-            new_info.append(results[i])
+        #print(img_path)
+        
+        results, new_rois = process_roi(img_path, model, label_encoder, rois, i, info, i[1]['bbox'])
+        for k, detection in enumerate(results):
+            new_info.append(results[k])
 
-    print(type(info))
-    print(type(new_info))
+    #print(type(info))
+    #print(type(new_info))
 
 
     for i, detection in enumerate(new_info):
