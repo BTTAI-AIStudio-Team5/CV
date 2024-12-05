@@ -241,20 +241,16 @@ def split_roi(roi, model, label_encoder, rois, j, info):
 
     for i, roi in enumerate(split_rois):
         if (i==0):
-            print(roi)
             roi_filename = 'ROI_{}.png'.format(j[0])
-            info[j[0]]= i
-            print(info[j[0]])
         else:
             roi_filename = "ROI_{}.png".format(i-1+rois)
-            info.append(i)
             
         print('writing file to ', roi_filename)
         cv2.imwrite(roi_filename, roi)
 
     return split_rois, rois+1
 
-def classify_rois(rois, model, label_encoder):
+def classify_rois(rois, model, label_encoder, info):
     """
     Classify each split ROI
     """
@@ -341,7 +337,7 @@ def process_roi(img_path, model, label_encoder, rois, j, info):
     split_rois, new_rois = split_roi(roi, model, label_encoder, rois, j, info)
     
     # Classify split ROIs
-    imgs_info = classify_rois(split_rois, model, label_encoder)
+    imgs_info = classify_rois(split_rois, model, label_encoder, info)
     
     # Optional: visualize split ROIs
     for i, info in enumerate(imgs_info):
@@ -357,14 +353,22 @@ if __name__ == "__main__":
     img_path = 'BTAI_genImages_150\canvas_14_banana1_monkey1_box4.png'
     label_encoder = joblib.load('label_encoder.pkl')
     result_img, info, rois = process_img(img_path, model)
+
+    new_info=[]
     
     for i in enumerate(info):
         img_path = 'ROI_{}.png'.format(i[0])
         print(img_path)
         results, new_rois = process_roi(img_path, model, label_encoder, rois, i, info)
+        for i, detection in enumerate(results):
+            new_info.append(results[i])
+
+    print(type(info))
+    print(type(new_info))
 
 
-    for i, detection in enumerate(info):
+    for i, detection in enumerate(new_info):
         print(f"Object {i+1}:")
+        #print(detection)
         print(f"Category: {detection['category']}")
         print(f"Bounding Box: {detection['bbox']}")
