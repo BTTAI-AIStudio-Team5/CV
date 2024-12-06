@@ -64,17 +64,21 @@ def split_roi(roi, orig_height, orig_width):
     """
     Split ROI into sub-regions if multiple objects are detected
     """
+    print("split roi")
+    print(f"orig height: {orig_height}, orig width: {orig_width}")
     edge_mask = detect_object_boundaries(roi)
     
     cnts, _ = cv2.findContours(edge_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
     if len(cnts) <= 1:
-        return [roi]
+        return [roi], [(0,0)]
     
     cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
     
     split_rois = []
     modified_roi = roi.copy()
+
+    sub_roi_top_left_coords = []
 
     sub_roi_coords = []
 
@@ -92,7 +96,6 @@ def split_roi(roi, orig_height, orig_width):
         y_start = max(int(y - h-4), 0)
         x_end = min(int(x + w + w+4), roi.shape[1])
         y_end = min(int(y + h + h+4), roi.shape[0])
-
         if y_end +10 > orig_height:
             y_end = orig_height
         if x_end +10 > orig_width:
@@ -107,13 +110,18 @@ def split_roi(roi, orig_height, orig_width):
 
         #entered in order of 'mid_x', 'mid_y', x_start, x_end, y_start, y_end
         sub_roi_coords.append([x + w / 2, y + h / 2,x_start,x_end,y_start,y_end])
-
+        sub_roi_top_left_coords.append((x,y))
+        
         modified_roi[y_start:y_end, x_start:x_end] =255
 
     if np.all(np.isin(modified_roi, [255, 220])):
-        return split_rois
+        return split_rois, sub_roi_top_left_coords
 
     to_remove = set()
+
+    #modified roi coordinates (assume top left corner of roi input is (0,0))
+    m_roi_x = 0
+    m_roi_y = 0
     for i in range(len(sub_roi_coords)-1):
         for j in range(i+1,len(sub_roi_coords)):
             mid_x1, mid_y1, x_start1, x_end1, y_start1, y_end1 = sub_roi_coords[i]
@@ -121,10 +129,12 @@ def split_roi(roi, orig_height, orig_width):
 
             # Horizontal alignment (same y-coordinate)
             if abs(mid_y1 - mid_y2) <= 3:
+                print("horizontal hit")
                 if x_end1 == orig_width or x_end2 == orig_width: 
                     if x_start1 == 0 or x_start2 == 0:
                         if y_start1-10<0:
                             modified_roi = modified_roi[y_end1:, :] 
+                            m_roi_y = y_end1
                             to_remove.add(i)
                             to_remove.add(j)
                             break
@@ -139,6 +149,7 @@ def split_roi(roi, orig_height, orig_width):
                     if y_start1 == 0 or y_start2 == 0:
                         if x_start1-10<0:
                             modified_roi = modified_roi[:, x_end1:] 
+                            m_roi_x = x_end1
                             to_remove.add(i)
                             to_remove.add(j)
                             break
@@ -156,18 +167,21 @@ def split_roi(roi, orig_height, orig_width):
                 modified_roi = modified_roi[:y_start, :]
             elif x_end < (orig_width-10):
                 modified_roi = modified_roi[:,x_end:]
+                m_roi_x = x_end
             elif x_start > 10:
                 modified_roi = modified_roi[:,:x_start]
             elif y_end < (orig_height-10):
                 modified_roi = modified_roi[y_end:,:]
+                m_roi_y = y_end
     m_height, m_width = modified_roi.shape[:2]
     area = m_height * m_width
     if area > 20:
         split_rois.append(modified_roi)
+        sub_roi_top_left_coords.append((m_roi_x, m_roi_y))
+    
+    return split_rois, sub_roi_top_left_coords
 
-    return split_rois
-
-def classify_rois(rois, model, label_encoder):
+def classify_rois(rois, top_left_coords, model, label_encoder):
     """
     Classify each split ROI
     """
@@ -176,7 +190,7 @@ def classify_rois(rois, model, label_encoder):
     imgs_info = []
     target_size = (32,32)
     
-    for roi in rois:
+    for i,roi in enumerate(rois):
         # Preprocess ROI for classification
         if roi.shape[0] != target_size[0] or roi.shape[1] != target_size[1]:
             roi_resized = cv2.resize(roi, target_size)
@@ -196,12 +210,15 @@ def classify_rois(rois, model, label_encoder):
             if prediction_label == 'banana':
                 banana_height = 35
                 banana_width = 50
+                print(f"{roi_height, roi_width}")
                 if roi_height >= banana_height*2:
+                    print("hit")
                     dup = roi_height / banana_height
                     for i in range(int(dup)):
                         sub_roi = roi[banana_height*i:banana_height*(i+1),:]
-                        h, w = sub_roi.shape[:2]
-                        mid_box_coords = [w/2, h/2]
+                        height = banana_height*i
+                        width = 0
+                        mid_box_coords = [height, width]
 
                         # Store object information
                         imgs_info.append({
@@ -210,11 +227,15 @@ def classify_rois(rois, model, label_encoder):
                             'roi': sub_roi
                         })
                 if roi_width >= banana_width*2:
+                    print("hit2")
                     dup = roi_width / banana_width
+                    print(dup)
                     for i in range(int(dup)):
                         sub_roi = roi[:,banana_width*i: banana_width*(i+1)]
-                        h, w = sub_roi.shape[:2]
-                        mid_box_coords = [w/2, h/2]
+                        height = 0
+                        width = banana_width*i
+                        mid_box_coords = [height, width]
+                        
 
                         # Store object information
                         imgs_info.append({
@@ -225,8 +246,8 @@ def classify_rois(rois, model, label_encoder):
                     continue
 
         # Compute midpoint
-        h, w = roi.shape[:2]
-        mid_box_coords = [w/2, h/2]
+        width, height = top_left_coords[i]
+        mid_box_coords = [height, width]
 
         # Store object information
         imgs_info.append({
@@ -241,15 +262,16 @@ def process_roi(img_path, model, label_encoder):
     """
     Main processing function for a single ROI
     """
+    print("process_roi")
     # Read the ROI image
     roi = cv2.imread(img_path)
     height, width,_ = roi.shape
     
     # Split ROI if multiple objects detected
-    split_rois = split_roi(roi, height, width)
+    split_rois, top_left_coords = split_roi(roi, height, width)
     
     # Classify split ROIs
-    imgs_info = classify_rois(split_rois, model, label_encoder)
+    imgs_info = classify_rois(split_rois, top_left_coords, model, label_encoder)
     
     # Optional: visualize split ROIs
     for i, info in enumerate(imgs_info):
