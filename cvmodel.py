@@ -479,6 +479,8 @@ if __name__ == "__main__":
         
     #print(type(info))
     #print(type(new_info))
+
+    final_result = []
     
 
     for i, detection in enumerate(new_info):
@@ -486,3 +488,9 @@ if __name__ == "__main__":
         #print(detection)
         print(f"Category: {detection['category']}")
         print(f"Bounding Box: {detection['bbox']}")
+
+        final_result.append({
+            'category': detection['category'],
+            'bbox': detection['bbox']
+        })
+
