@@ -103,7 +103,7 @@ def process_img(image_path, model):
         x,y,w,h = cv2.boundingRect(c)
         if w<20 or h<20:
             continue
-        cv2.rectangle(image, (x, y), (x + w, y + h), (36,255,12), 2)
+        #cv2.rectangle(image, (x, y), (x + w, y + h), (36,255,12), 2)
         ROI = original[y:y+h, x:x+w]
         roi_tensor = preprocess(ROI)
 
@@ -137,8 +137,8 @@ def process_img(image_path, model):
     #image = cv2.circle(image, (368,461), radius=6, color=(255, 12, 36), thickness=10)
     #image = cv2.circle(image, (301,251), radius=6, color=(255, 12, 36), thickness=10)
 
-    cv2.imshow('image', image)
-    cv2.waitKey()
+    #cv2.imshow('image', image)
+    #cv2.waitKey()
     #cv2.imshow('gray', gray)
     #cv2.waitKey()
     #cv2.imshow('threshold', thresh)
@@ -333,17 +333,17 @@ def split_roi(roi, orig_height, orig_width, og_coords):
     
     return split_rois, sub_roi_top_left_coords, global_coords, detected
 
-    for i, roi in enumerate(split_rois):
-        if (i==0):
-            roi_filename = 'ROI_{}.png'.format(j[0])
-        else:
-            roi_filename = "ROI_{}.png".format(i-1+rois)
+    #for i, roi in enumerate(split_rois):
+        #if (i==0):
+         #   roi_filename = 'ROI_{}.png'.format(j[0])
+        #else:
+         #   roi_filename = "ROI_{}.png".format(i-1+rois)
             
         #print('writing file to ', roi_filename)
-        print(roi)
-        cv2.imwrite(roi_filename, roi)
+        #print(roi)
+        #cv2.imwrite(roi_filename, roi)
 
-def classify_rois(rois, top_left_coords, og_coords, model, label_encoder):
+def classify_rois(rois, top_left_coords, og_coords, model, label_encoder, image):
     """
     Classify each split ROI
     """
@@ -382,12 +382,17 @@ def classify_rois(rois, top_left_coords, og_coords, model, label_encoder):
                 if roi_height >= banana_height*2:
                     print("hit")
                     dup = roi_height / banana_height
-                    for h in range(int(dup)):
-                        sub_roi = roi[banana_height*h:banana_height*(h+1),:]
-                        height = banana_height*h
+                    for z in range(int(dup)):
+                        sub_roi = roi[banana_height*z:banana_height*(z+1),:]
+                        height = banana_height*z
                         width = 0
+                        h, w, _ = sub_roi.shape
                         mid_box_coords = [height, width]
-                        new_box_coords = [og_coords[i][0]+width, og_coords[i][1]+height]
+                        x = int(((og_coords[i][0]+width)*2+w)/2)
+                        y = int(((og_coords[i][1]+height)*2+h)/2)
+                        new_box_coords = [x, y]
+
+                        cv2.rectangle(image, (x, y), (x + w, y + h), (255,12,36), 2)
 
                         # Store object information
                         imgs_info.append({
@@ -403,8 +408,13 @@ def classify_rois(rois, top_left_coords, og_coords, model, label_encoder):
                         sub_roi = roi[:,banana_width*j: banana_width*(j+1)]
                         height = 0
                         width = banana_width*j
+                        h, w, _ = sub_roi.shape
                         mid_box_coords = [height, width]
-                        new_box_coords = [og_coords[i][0]+width, og_coords[i][1]+height]
+                        x = int(((og_coords[i][0]+width)*2+w)/2)
+                        y = int(((og_coords[i][1]+height)*2+h)/2)
+                        new_box_coords = [x, y]
+
+                        cv2.rectangle(image, (x, y), (x + w, y + h), (255,12,36), 2)
 
                         # Store object information
                         imgs_info.append({
@@ -416,8 +426,21 @@ def classify_rois(rois, top_left_coords, og_coords, model, label_encoder):
         # Compute midpoint
         #print('i: ', i)
         width, height = top_left_coords[i]
-        mid_box_coords = [width+og_coords[i][0], height+og_coords[i][1]]
+
+        if prediction_label != 'monkey' and prediction_label != 'banana':
+            width = width-16
+            height = height-10
+        h, w, _ = roi.shape
+        x = int(((width+og_coords[i][0])*2+w)/2)
+        y = int(((height+og_coords[i][1])*2+h)/2)
+        mid_box_coords = [x, y]
+        #print(x)
+        #print(y)
+        #print(w)
+        #print(h)
         
+        cv2.rectangle(image, (width+og_coords[i][0], height+og_coords[i][1]), 
+                      (og_coords[i][0]+width + w, og_coords[i][1]+height + h), (255,12,36), 2)
 
         # Store object information
         imgs_info.append({
@@ -426,9 +449,9 @@ def classify_rois(rois, top_left_coords, og_coords, model, label_encoder):
             'roi': roi
         })
     
-    return imgs_info
+    return imgs_info, image
 
-def process_roi(roi, model, label_encoder, info, coords):
+def process_roi(roi, model, label_encoder, info, coords, image):
     """
     Main processing function for a single ROI
     """
@@ -443,7 +466,7 @@ def process_roi(roi, model, label_encoder, info, coords):
 
     
     # Classify split ROIs
-    imgs_info = classify_rois(split_rois, top_left_coords,og_coords, model, label_encoder)
+    imgs_info, image = classify_rois(split_rois, top_left_coords,og_coords, model, label_encoder, image)
 
     
     
@@ -455,25 +478,23 @@ def process_roi(roi, model, label_encoder, info, coords):
     #cv2.waitKey(0)
     #cv2.destroyAllWindows()
     
-    return imgs_info
+    return imgs_info, image
 
 if __name__ == "__main__":
     model = load_model()
-    img_path = 'BTAI_genImages_extra\canvas_0_banana1_monkey1_box4_stack3_banana.png'
+    img_path = 'BTAI_genImages_extra\canvas_0_banana2_monkey1_box4.png'
     label_encoder = joblib.load('label_encoder.pkl')
     result_img, info, rois, imgs = process_img(img_path, model)
 
     new_info=[]
-    remove =[]
-
-    
+  
     
     for i in enumerate(info):
         roi = imgs[i[0]]
         #print(img_path)
         
         #print(info[i[0]]['bbox'])
-        results = process_roi(roi, model, label_encoder, info, i[1]['bbox'])
+        results, image = process_roi(roi, model, label_encoder, info, i[1]['bbox'], result_img)
         for k, detection in enumerate(results):
             new_info.append(results[k])
         
@@ -481,11 +502,13 @@ if __name__ == "__main__":
     #print(type(new_info))
 
     final_result = []
+    cv2.imshow('image', image)
+    cv2.waitKey()
+
     
 
     for i, detection in enumerate(new_info):
         print(f"Object {i+1}:")
-        #print(detection)
         print(f"Category: {detection['category']}")
         print(f"Bounding Box: {detection['bbox']}")
 
