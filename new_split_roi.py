@@ -64,8 +64,6 @@ def split_roi(roi, orig_height, orig_width):
     """
     Split ROI into sub-regions if multiple objects are detected
     """
-    print("split roi")
-    print(f"orig height: {orig_height}, orig width: {orig_width}")
     edge_mask = detect_object_boundaries(roi)
     
     cnts, _ = cv2.findContours(edge_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -94,7 +92,7 @@ def split_roi(roi, orig_height, orig_width):
         y_start = max(int(y - h-4), 0)
         x_end = min(int(x + w + w+4), roi.shape[1])
         y_end = min(int(y + h + h+4), roi.shape[0])
-        print(f"{x_start, y_start, x_end, y_end}")
+
         if y_end +10 > orig_height:
             y_end = orig_height
         if x_end +10 > orig_width:
@@ -105,21 +103,16 @@ def split_roi(roi, orig_height, orig_width):
             y_start = 0
 
         sub_roi = roi[y_start:y_end, x_start:x_end]    
-        print(f"y_start: {y_start}, y_end: {y_end}, x_start: {x_start}, x_end: {x_end}")
         split_rois.append(sub_roi)
 
         #entered in order of 'mid_x', 'mid_y', x_start, x_end, y_start, y_end
         sub_roi_coords.append([x + w / 2, y + h / 2,x_start,x_end,y_start,y_end])
 
         modified_roi[y_start:y_end, x_start:x_end] =255
-        cv2.imshow("modified roi", modified_roi)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
 
     if np.all(np.isin(modified_roi, [255, 220])):
         return split_rois
 
-    print(f"coords: {sub_roi_coords}")
     to_remove = set()
     for i in range(len(sub_roi_coords)-1):
         for j in range(i+1,len(sub_roi_coords)):
@@ -128,30 +121,20 @@ def split_roi(roi, orig_height, orig_width):
 
             # Horizontal alignment (same y-coordinate)
             if abs(mid_y1 - mid_y2) <= 3:
-                print("horizontal hit")
-                print(f"idx: {i,j}")
                 if x_end1 == orig_width or x_end2 == orig_width: 
                     if x_start1 == 0 or x_start2 == 0:
                         if y_start1-10<0:
                             modified_roi = modified_roi[y_end1:, :] 
-                            cv2.imshow("modified roi", modified_roi)
-                            cv2.waitKey(0)
-                            cv2.destroyAllWindows()
                             to_remove.add(i)
                             to_remove.add(j)
                             break
                         elif y_end1+10>orig_height:
-                            print("hit2")
                             modified_roi = modified_roi[:y_start1, :] 
-                            cv2.imshow("modified roi", modified_roi)
-                            cv2.waitKey(0)
-                            cv2.destroyAllWindows()
                             to_remove.add(i)
                             to_remove.add(j)
                             break
             # Vertical alignment (same x-coordinate)
             elif abs(mid_x1 - mid_x2) <=3:
-                print("vertical hit")
                 if y_end1 == orig_height or y_end2 == orig_height: 
                     if y_start1 == 0 or y_start2 == 0:
                         if x_start1-10<0:
@@ -169,31 +152,14 @@ def split_roi(roi, orig_height, orig_width):
     if sub_roi_coords:
         for i,coords in enumerate(sub_roi_coords):
             mid_x,mid_y,x_start,x_end,y_start,y_end = coords
-            print(f"coords:{x_start,x_end,y_start,y_end}")
             if y_start > 10:
-                print("y_start")
                 modified_roi = modified_roi[:y_start, :]
-                cv2.imshow("modified roi", modified_roi)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
             elif x_end < (orig_width-10):
-                print("x_end")
                 modified_roi = modified_roi[:,x_end:]
-                cv2.imshow("modified roi", modified_roi)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
             elif x_start > 10:
-                print("x_start")
                 modified_roi = modified_roi[:,:x_start]
-                cv2.imshow("modified roi", modified_roi)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
             elif y_end < (orig_height-10):
-                print("y_end")
                 modified_roi = modified_roi[y_end:,:]
-                cv2.imshow("modified roi", modified_roi)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
     m_height, m_width = modified_roi.shape[:2]
     area = m_height * m_width
     if area > 20:
@@ -230,9 +196,7 @@ def classify_rois(rois, model, label_encoder):
             if prediction_label == 'banana':
                 banana_height = 35
                 banana_width = 50
-                print(f"{roi_height, roi_width}")
                 if roi_height >= banana_height*2:
-                    print("hit")
                     dup = roi_height / banana_height
                     for i in range(int(dup)):
                         sub_roi = roi[banana_height*i:banana_height*(i+1),:]
@@ -246,9 +210,7 @@ def classify_rois(rois, model, label_encoder):
                             'roi': sub_roi
                         })
                 if roi_width >= banana_width*2:
-                    print("hit2")
                     dup = roi_width / banana_width
-                    print(dup)
                     for i in range(int(dup)):
                         sub_roi = roi[:,banana_width*i: banana_width*(i+1)]
                         h, w = sub_roi.shape[:2]
@@ -279,7 +241,6 @@ def process_roi(img_path, model, label_encoder):
     """
     Main processing function for a single ROI
     """
-    print("process_roi")
     # Read the ROI image
     roi = cv2.imread(img_path)
     height, width,_ = roi.shape
